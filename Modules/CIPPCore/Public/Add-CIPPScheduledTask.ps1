@@ -46,6 +46,12 @@ function Add-CIPPScheduledTask {
                 return "Could not run task: $ErrorMessage"
             }
         } else {
+            if (!$Task.RowKey) {
+                $RowKey = (New-Guid).Guid
+            } else {
+                $RowKey = $Task.RowKey
+            }
+
             if ($DisallowDuplicateName) {
                 $Filter = "PartitionKey eq 'ScheduledTask' and Name eq '$($Task.Name)'"
                 $ExistingTask = (Get-CIPPAzDataTableEntity @Table -Filter $Filter)
@@ -110,11 +116,7 @@ function Add-CIPPScheduledTask {
             }
             $AdditionalProperties = ([PSCustomObject]$AdditionalProperties | ConvertTo-Json -Compress)
             if ($Parameters -eq 'null') { $Parameters = '' }
-            if (!$Task.RowKey) {
-                $RowKey = (New-Guid).Guid
-            } else {
-                $RowKey = $Task.RowKey
-            }
+
 
             $Recurrence = if ([string]::IsNullOrEmpty($task.Recurrence.value)) {
                 $task.Recurrence
@@ -185,6 +187,7 @@ function Add-CIPPScheduledTask {
                 ScheduledTime        = [string]$task.ScheduledTime
                 Recurrence           = [string]$Recurrence
                 PostExecution        = [string]$PostExecution
+                Reference            = [string]$task.Reference
                 AdditionalProperties = [string]$AdditionalProperties
                 Hidden               = [bool]$Hidden
                 Results              = 'Planned'
@@ -221,7 +224,8 @@ function Add-CIPPScheduledTask {
                         $Parameters.'$select' = $task.Trigger.WatchedAttributes | ForEach-Object { $_.value ?? $_ } -join ','
                     }
                     if ($task.Trigger.ResourceFilter) {
-                        $Parameters.'$filter' = "id eq '" + $task.Trigger.ResourceFilter | ForEach-Object { $_.value ?? $_ } -join "' or id eq '"
+                        $ResourceFilterValues = $task.Trigger.ResourceFilter | ForEach-Object { $_.value ?? $_ }
+                        $Parameters.'$filter' = "id eq '" + ($ResourceFilterValues -join "' or id eq '") + "'"
                     }
                     $Resource = $task.Trigger.DeltaResource.value ?? $task.Trigger.DeltaResource
 
